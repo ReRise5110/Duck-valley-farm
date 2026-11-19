@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { FarmData } from '../types/farm';
 import { createNewFarmTemplate, createSampleFarmSet } from '../data/seedFarms';
@@ -92,6 +93,7 @@ export const FarmSelector: React.FC<FarmSelectorProps> = ({
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showLoginPopup, setShowLoginPopup] = useState(true);
 
   const [farmName, setFarmName] = useState('');
   const [location, setLocation] = useState('');
@@ -128,6 +130,7 @@ export const FarmSelector: React.FC<FarmSelectorProps> = ({
     setConfirmDeleteId(null);
     setAuthError(null);
     setActionError(null);
+    setShowLoginPopup(true);
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -230,17 +233,35 @@ export const FarmSelector: React.FC<FarmSelectorProps> = ({
 
           {isFirebaseAuthConfigured() && authReady && currentUser && userEmail && (
             <div className="pt-2 border-t border-[#d6b680] flex flex-col items-center gap-2">
-              <div className="inline-flex flex-wrap items-center justify-center gap-2 bg-emerald-100 border-2 border-emerald-700 px-3 py-1.5 text-xs font-bold text-emerald-950">
+              <div className="inline-flex flex-wrap items-center justify-center gap-2.5 bg-emerald-100 border-2 border-emerald-700 px-3 py-1.5 text-xs font-bold text-emerald-950">
                 <span>เข้าสู่ระบบ Google แล้ว: {userEmail}</span>
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={handleGoogleLogin}
+                  className="inline-flex items-center gap-1 text-sky-900 hover:underline cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${authBusy ? 'animate-spin' : ''}`} />
+                  สลับบัญชี (Popup)
+                </button>
+                <span aria-hidden="true" className="text-emerald-700">
+                  |
+                </span>
                 <button
                   type="button"
                   onClick={handleGoogleLogout}
                   className="inline-flex items-center gap-1 text-rose-800 hover:underline cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  สลับบัญชี / ออกจากระบบ
+                  ออกจากระบบ
                 </button>
               </div>
+              {authError && (
+                <div className="bg-rose-100 border-2 border-rose-700 text-rose-950 px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -319,22 +340,36 @@ export const FarmSelector: React.FC<FarmSelectorProps> = ({
                     เชื่อมต่อบัญชี Google เพื่อเริ่มจัดการฟาร์ม
                   </h3>
                   <p className="text-sm text-[#5c2e14]">
-                    เมื่อเข้าสู่ระบบด้วยบัญชี Google ระบบจะแสดงเฉพาะฟาร์มที่ผูกกับบัญชีนั้นโดยเฉพาะ และบันทึกข้อมูลอัตโนมัติในบัญชีของคุณ
+                    เข้าสู่ระบบด้วย Google แบบ Popup เพื่อแสดงและบันทึกข้อมูลฟาร์มเฉพาะบัญชีของคุณ
                   </p>
                 </div>
 
                 {isFirebaseAuthConfigured() ? (
-                  <button
-                    type="button"
-                    disabled={authBusy}
-                    onClick={handleGoogleLogin}
-                    className="gsi-material-button disabled:opacity-60"
-                  >
-                    <div className="gsi-material-button-icon">
-                      <GoogleLogoSvg />
-                    </div>
-                    <span>{authBusy ? 'กำลังเข้าสู่ระบบ...' : 'Sign in with Google'}</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      disabled={authBusy}
+                      onClick={handleGoogleLogin}
+                      className="gsi-material-button disabled:opacity-60"
+                    >
+                      <div className="gsi-material-button-icon">
+                        <GoogleLogoSvg />
+                      </div>
+                      <span>{authBusy ? 'กำลังเปิด Popup...' : 'Sign in with Google'}</span>
+                    </button>
+                    {!showLoginPopup && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playPixelClick(muted);
+                          setShowLoginPopup(true);
+                        }}
+                        className="pixel-btn bg-[#e69128] hover:bg-[#d47e18] text-[#2b180e] text-xs font-bold px-3.5 py-2 cursor-pointer"
+                      >
+                        เปิดหน้าต่าง Popup ล็อกอิน
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <div className="bg-rose-100 border-2 border-rose-700 text-rose-950 px-4 py-2 text-xs font-bold">
                     ยังไม่ได้ตั้งค่า Firebase Auth ในโปรเจกต์นี้
@@ -661,6 +696,79 @@ export const FarmSelector: React.FC<FarmSelectorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Google Login Popup Modal */}
+      {authReady && !currentUser && showLoginPopup && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="google-login-popup-title"
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+        >
+          <div className="pixel-wood-panel w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="pixel-wood-header px-4 py-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[#fff5dc]">
+                <PixelDuckSprite variant="duckling" size={24} />
+                <h3 id="google-login-popup-title" className="font-display text-base font-bold">
+                  เข้าสู่ระบบ Google (Popup)
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={authBusy}
+                onClick={() => {
+                  playPixelClick(muted);
+                  setShowLoginPopup(false);
+                }}
+                className="p-1 text-amber-200 hover:text-white cursor-pointer disabled:opacity-50"
+                aria-label="ปิดหน้าต่างเข้าสู่ระบบ"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 flex flex-col items-center text-center space-y-4 bg-[#fff9eb]">
+              <div className="w-20 h-20 bg-[#f6e3ba] border-2 border-[#723b18] flex items-center justify-center">
+                <PixelDuckSprite variant="duckling" size={56} />
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="font-display text-lg font-bold text-[#3a1f0f]">
+                  เชื่อมต่อบัญชี Google เพื่อเข้าฟาร์ม
+                </h4>
+                <p className="text-xs sm:text-sm text-[#5c2e14]">
+                  กดปุ่มด้านล่างเพื่อเปิดหน้าต่าง Popup เลือกบัญชี Google ข้อมูลฟาร์มทั้งหมดจะผูกกับบัญชีที่เลือกโดยเฉพาะ
+                </p>
+              </div>
+
+              {isFirebaseAuthConfigured() ? (
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={handleGoogleLogin}
+                  className="gsi-material-button disabled:opacity-60"
+                >
+                  <div className="gsi-material-button-icon">
+                    <GoogleLogoSvg />
+                  </div>
+                  <span>{authBusy ? 'กำลังเปิดหน้าต่าง Popup...' : 'Sign in with Google'}</span>
+                </button>
+              ) : (
+                <div className="bg-rose-100 border-2 border-rose-700 text-rose-950 px-4 py-2 text-xs font-bold">
+                  ยังไม่ได้ตั้งค่า Firebase Auth ในโปรเจกต์นี้
+                </div>
+              )}
+
+              {authError && (
+                <div className="w-full bg-rose-100 border-2 border-rose-700 text-rose-950 px-3 py-2 text-xs font-semibold flex items-start gap-2 text-left">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

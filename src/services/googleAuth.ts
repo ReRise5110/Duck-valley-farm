@@ -2,6 +2,9 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   onAuthStateChanged,
+  browserPopupRedirectResolver,
+  browserLocalPersistence,
+  setPersistence,
   User,
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './firebase';
@@ -12,6 +15,7 @@ export const WORKSPACE_SCOPES = [
 ];
 
 let cachedAccessToken: string | null = null;
+let persistenceInitialized = false;
 
 export function isFirebaseAuthConfigured(): boolean {
   return isFirebaseConfigured() && Boolean(auth);
@@ -23,6 +27,13 @@ export function initGoogleAuth(
   if (!auth) {
     onAuthState(null, null);
     return () => {};
+  }
+
+  if (!persistenceInitialized) {
+    persistenceInitialized = true;
+    void setPersistence(auth, browserLocalPersistence).catch(() => {
+      // Ignore if environment restricts storage persistence
+    });
   }
 
   return onAuthStateChanged(auth, (user) => {
@@ -39,11 +50,11 @@ function mapFirebaseAuthError(err: unknown): Error {
   const code = (err as { code?: string })?.code || '';
   if (code === 'auth/popup-blocked') {
     return new Error(
-      'เบราว์เซอร์บล็อกหน้าต่างเข้าสู่ระบบ Google กรุณาอนุญาตป๊อปอัป (Pop-up) สำหรับเว็บไซต์นี้แล้วลองใหม่อีกครั้ง'
+      'เบราว์เซอร์บล็อกหน้าต่าง Popup เข้าสู่ระบบ Google กรุณาอนุญาต Pop-up สำหรับเว็บไซต์นี้แล้วลองใหม่อีกครั้ง'
     );
   }
   if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-    return new Error('ปิดหน้าต่างเข้าสู่ระบบ Google ก่อนเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
+    return new Error('ปิดหน้าต่าง Popup เข้าสู่ระบบ Google ก่อนเสร็จสิ้น กรุณาลองใหม่อีกครั้ง');
   }
   if (code === 'auth/unauthorized-domain') {
     return new Error(
@@ -60,12 +71,12 @@ function mapFirebaseAuthError(err: unknown): Error {
       'ไม่สามารถเชื่อมต่อเครือข่ายไปยังบริการยืนยันตัวตน Google ได้ กรุณาตรวจสอบอินเทอร์เน็ต'
     );
   }
-  return err instanceof Error ? err : new Error('ไม่สามารถเข้าสู่ระบบ Google ได้');
+  return err instanceof Error ? err : new Error('ไม่สามารถเข้าสู่ระบบ Google แบบ Popup ได้');
 }
 
 /**
- * Standard Google Account Login (works with any Google account, persists session via Firebase Auth).
- * Does not grant or cache Workspace scopes — Workspace scopes are requested explicitly via signInWithGoogleWorkspace().
+ * Standard Google Account Login via Firebase Auth Popup (signInWithPopup).
+ * Invokes signInWithPopup synchronously inside the user click gesture so browsers do not block the popup.
  */
 export async function signInWithGoogleAccount(): Promise<{
   user: User;
@@ -76,10 +87,12 @@ export async function signInWithGoogleAccount(): Promise<{
   }
 
   const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
+  provider.setCustomParameters({
+    prompt: 'select_account',
+  });
 
   try {
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     cachedAccessToken = null;
     return { user: result.user, accessToken: null };
   } catch (err: unknown) {
@@ -116,7 +129,7 @@ async function verifySheetsScopeGranted(token: string): Promise<void> {
 }
 
 /**
- * Google Workspace OAuth Login (requests Sheets + Calendar scopes for Two-Way Sync).
+ * Google Workspace OAuth Login via Popup (requests Sheets + Calendar scopes for Two-Way Sync).
  */
 export async function signInWithGoogleWorkspace(): Promise<{
   user: User;
@@ -137,7 +150,7 @@ export async function signInWithGoogleWorkspace(): Promise<{
   });
 
   try {
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
       throw new Error(
