@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.uid == userId
+        && data.email is string
+        && data.email.size() <= 320
+        && data.displayName is string
+        && data.displayName.size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    function isValidFarm(data, userId, farmId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'location', 'farmerName', 'farmerAvatar',
+          'season', 'farmDay', 'createdAt', 'lastSyncedAt', 'googleSheetId',
+          'googleSheetTitle', 'appsScriptWebhookUrl', 'lineNotifyEnabled',
+          'barns', 'calendarEvents', 'feedFormulas', 'feedSilos', 'feedLogs',
+          'environments', 'salesRecords', 'closedBatches', 'syncLogs', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'location', 'farmerName', 'farmerAvatar',
+          'season', 'farmDay', 'createdAt', 'lastSyncedAt', 'googleSheetId',
+          'googleSheetTitle', 'appsScriptWebhookUrl', 'lineNotifyEnabled',
+          'barns', 'calendarEvents', 'feedFormulas', 'feedSilos', 'feedLogs',
+          'environments', 'salesRecords', 'closedBatches', 'syncLogs', 'updatedAt'
+        ])
+        && data.id == farmId
+        && data.ownerId == request.auth.uid
+        && data.ownerId == userId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.location is string && data.location.size() <= 200
+        && data.farmerName is string && data.farmerName.size() <= 120
+        && data.farmerAvatar in ['sunhat', 'ribbon', 'straw', 'bandana']
+        && data.season in ['Spring', 'Summer', 'Autumn']
+        && data.farmDay is int && data.farmDay >= 1 && data.farmDay <= 100000
+        && data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 40
+        && data.lastSyncedAt is string && data.lastSyncedAt.size() <= 80
+        && data.googleSheetId is string && data.googleSheetId.size() <= 300
+        && data.googleSheetTitle is string && data.googleSheetTitle.size() <= 200
+        && data.appsScriptWebhookUrl is string && data.appsScriptWebhookUrl.size() <= 500
+        && data.lineNotifyEnabled is bool
+        && data.barns is list && data.barns.size() <= 100 && (data.barns.size() == 0 || data.barns[0] is map)
+        && data.calendarEvents is list && data.calendarEvents.size() <= 1000 && (data.calendarEvents.size() == 0 || data.calendarEvents[0] is map)
+        && data.feedFormulas is list && data.feedFormulas.size() <= 100 && (data.feedFormulas.size() == 0 || data.feedFormulas[0] is map)
+        && data.feedSilos is list && data.feedSilos.size() <= 100 && (data.feedSilos.size() == 0 || data.feedSilos[0] is map)
+        && data.feedLogs is list && data.feedLogs.size() <= 5000 && (data.feedLogs.size() == 0 || data.feedLogs[0] is map)
+        && data.environments is list && data.environments.size() <= 100 && (data.environments.size() == 0 || data.environments[0] is map)
+        && data.salesRecords is list && data.salesRecords.size() <= 2000 && (data.salesRecords.size() == 0 || data.salesRecords[0] is map)
+        && data.closedBatches is list && data.closedBatches.size() <= 2000 && (data.closedBatches.size() == 0 || data.closedBatches[0] is map)
+        && data.syncLogs is list && data.syncLogs.size() <= 1000 && (data.syncLogs.size() == 0 || data.syncLogs[0] is map)
+        && data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedOwner(userId) && isValidId(userId) && (resource == null || existing().uid == request.auth.uid);
+      allow list: if false;
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time;
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'updatedAt']);
+      allow delete: if false;
+
+      match /farms/{farmId} {
+        allow get: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(farmId)
+          && (resource == null || existing().ownerId == request.auth.uid);
+        allow list: if isVerifiedOwner(userId)
+          && existing().ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(farmId)
+          && isValidFarm(incoming(), userId, farmId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(farmId)
+          && isValidFarm(incoming(), userId, farmId)
+          && incoming().id == existing().id
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'location', 'farmerName', 'farmerAvatar', 'season', 'farmDay',
+            'lastSyncedAt', 'googleSheetId', 'googleSheetTitle', 'appsScriptWebhookUrl',
+            'lineNotifyEnabled', 'barns', 'calendarEvents', 'feedFormulas', 'feedSilos',
+            'feedLogs', 'environments', 'salesRecords', 'closedBatches', 'syncLogs',
+            'updatedAt'
+          ]);
+        allow delete: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(farmId)
+          && existing().ownerId == request.auth.uid;
+      }
+    }
+  }
+}

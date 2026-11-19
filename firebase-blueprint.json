@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated Google account profile owning private duck farms.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified Google account email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Google account display name."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the user profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the user profile was last updated."
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "Farm": {
+      "title": "Farm",
+      "description": "A duck farm workspace owned exclusively by a single Google user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique farm identifier matching the document ID."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the farm owner."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the duck farm."
+        },
+        "location": {
+          "type": "string",
+          "description": "Province or district location of the farm."
+        },
+        "farmerName": {
+          "type": "string",
+          "description": "Name of the farm caretaker."
+        },
+        "farmerAvatar": {
+          "type": "string",
+          "enum": ["sunhat", "ribbon", "straw", "bandana"],
+          "description": "Pixel farmer sprite avatar variant."
+        },
+        "season": {
+          "type": "string",
+          "enum": ["Spring", "Summer", "Autumn"],
+          "description": "Current in-app farm season."
+        },
+        "farmDay": {
+          "type": "number",
+          "description": "Current simulation/operation day count."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO calendar date string (YYYY-MM-DD) when the farm was created."
+        },
+        "lastSyncedAt": {
+          "type": "string",
+          "description": "Human-readable timestamp of the last Sheet sync."
+        },
+        "googleSheetId": {
+          "type": "string",
+          "description": "Linked Google Spreadsheet ID."
+        },
+        "googleSheetTitle": {
+          "type": "string",
+          "description": "Title of the linked Google Spreadsheet."
+        },
+        "appsScriptWebhookUrl": {
+          "type": "string",
+          "description": "Optional Google Apps Script webhook URL."
+        },
+        "lineNotifyEnabled": {
+          "type": "boolean",
+          "description": "Whether LINE notifications are enabled."
+        },
+        "barns": {
+          "type": "array",
+          "description": "List of barns in the farm."
+        },
+        "calendarEvents": {
+          "type": "array",
+          "description": "Farm calendar events and vaccination schedules."
+        },
+        "feedFormulas": {
+          "type": "array",
+          "description": "Feed formula definitions for duck growth stages."
+        },
+        "feedSilos": {
+          "type": "array",
+          "description": "Feed silos and remaining inventory."
+        },
+        "feedLogs": {
+          "type": "array",
+          "description": "Feed dispensing logs."
+        },
+        "environments": {
+          "type": "array",
+          "description": "Barn environment and brooder control settings."
+        },
+        "salesRecords": {
+          "type": "array",
+          "description": "Harvest and sales profit records."
+        },
+        "closedBatches": {
+          "type": "array",
+          "description": "Archived closed batch performance summaries."
+        },
+        "syncLogs": {
+          "type": "array",
+          "description": "Synchronization history entries."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last Firestore update."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "location",
+        "farmerName",
+        "farmerAvatar",
+        "season",
+        "farmDay",
+        "createdAt",
+        "lastSyncedAt",
+        "googleSheetId",
+        "googleSheetTitle",
+        "appsScriptWebhookUrl",
+        "lineNotifyEnabled",
+        "barns",
+        "calendarEvents",
+        "feedFormulas",
+        "feedSilos",
+        "feedLogs",
+        "environments",
+        "salesRecords",
+        "closedBatches",
+        "syncLogs",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private profile document for each signed-in Google user."
+    },
+    "/users/{userId}/farms/{farmId}": {
+      "schema": { "$ref": "#/entities/Farm" },
+      "description": "Per-account farm documents strictly isolated to the owning user."
+    }
+  }
+}

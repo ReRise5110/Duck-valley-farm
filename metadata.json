@@ -1,0 +1,8 @@
+{
+  "name": "Remix Duck Valley Farm — ฟาร์มเป็ดเนื้อ",
+  "description": "แอปพลิเคชันจัดการฟาร์มเป็ดเนื้อสไตล์เกมทำฟาร์ม Pixel Art พร้อมระบบ Two-Way Sync Google Sheets, ปฏิทินโรงเรือน, ไซโลอาหาร, ระบบควบคุมสภาพแวดล้อม \u0026 Auto-Brooder และสรุปผลกำไรหลังการขาย",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
