@@ -12,7 +12,7 @@ import {
   calculateFarmOverviewMetrics,
   getBarnFeedStageAlert,
 } from '../utils/livestockMetrics';
-import { playCatMeow, playDuckQuack, playPixelClick } from '../utils/soundFx';
+import { playCatMeow, playDuckQuack, playPixelClick, playPixelJump } from '../utils/soundFx';
 
 interface FarmSceneProps {
   farm: FarmData;
@@ -62,18 +62,32 @@ export const FarmScene: React.FC<FarmSceneProps> = ({
   const [catBubble, setCatBubble] = useState<string | null>(null);
   const catTimerRef = useRef<number | null>(null);
 
-  // Controllable girl character state (WASD on computer)
+  // Controllable girl character state (WASD + Spacebar jump on computer)
   const [girlPos, setGirlPos] = useState<{ x: number; y: number }>({ x: 686, y: 228 });
+  const [girlJumpZ, setGirlJumpZ] = useState(0);
   const [girlFacing, setGirlFacing] = useState<'left' | 'right'>('right');
   const [isGirlMoving, setIsGirlMoving] = useState(false);
   const keysPressedRef = useRef<Set<'W' | 'A' | 'S' | 'D'>>(new Set());
+  const jumpZRef = useRef(0);
+  const jumpVelRef = useRef(0);
+  const mutedRef = useRef(muted);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   useEffect(() => {
     if (modalOpen) {
       keysPressedRef.current.clear();
+      jumpZRef.current = 0;
+      jumpVelRef.current = 0;
+      setGirlJumpZ(0);
       setIsGirlMoving(false);
       return;
     }
+
+    const JUMP_VELOCITY = 320;
+    const GRAVITY = 1150;
 
     const mapKeyToDir = (e: KeyboardEvent): 'W' | 'A' | 'S' | 'D' | null => {
       switch (e.code) {
@@ -105,6 +119,16 @@ export const FarmScene: React.FC<FarmSceneProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || isEditableFocused()) return;
+
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        if (!e.repeat && jumpZRef.current === 0 && jumpVelRef.current === 0) {
+          jumpVelRef.current = JUMP_VELOCITY;
+          playPixelJump(mutedRef.current);
+        }
+        return;
+      }
+
       const dir = mapKeyToDir(e);
       if (!dir) return;
       e.preventDefault();
@@ -165,6 +189,20 @@ export const FarmScene: React.FC<FarmSceneProps> = ({
         });
       } else {
         setIsGirlMoving((prev) => (prev ? false : prev));
+      }
+
+      // Vertical jump physics (Spacebar)
+      if (jumpZRef.current > 0 || jumpVelRef.current > 0) {
+        jumpVelRef.current -= GRAVITY * dt;
+        const nextZ = jumpZRef.current + jumpVelRef.current * dt;
+        if (nextZ <= 0) {
+          jumpZRef.current = 0;
+          jumpVelRef.current = 0;
+          setGirlJumpZ(0);
+        } else {
+          jumpZRef.current = nextZ;
+          setGirlJumpZ(nextZ);
+        }
       }
 
       rafId = window.requestAnimationFrame(tick);
@@ -976,30 +1014,41 @@ export const FarmScene: React.FC<FarmSceneProps> = ({
           )}
         </g>
 
-        {/* Controllable 16-bit Farmer Girl (WASD on desktop) */}
+        {/* Controllable 16-bit Farmer Girl (WASD + Spacebar on desktop) */}
         <g transform={`translate(${girlPos.x.toFixed(1)}, ${girlPos.y.toFixed(1)})`}>
-          <g className={isGirlMoving ? 'animate-girl-step' : undefined}>
-            <foreignObject x="0" y="0" width="54" height="54">
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  transform: girlFacing === 'left' ? 'scaleX(-1)' : undefined,
-                }}
-              >
-                <PixelFarmerSprite avatar={farm.farmerAvatar} size={52} />
-              </div>
-            </foreignObject>
-          </g>
-          {/* Floating Pixel Heart / Alert Bubble */}
-          <g transform="translate(12, -24)">
-            <g className="animate-heart-float">
-              <rect x="0" y="0" width="28" height="22" rx="4" fill="#ffffff" />
-              <rect x="0" y="20" width="28" height="2" fill="#cbd5e1" />
-              <polygon points="10,22 14,27 18,22" fill="#ffffff" />
-              <path
-                d="M14 16 L8 10 A3.5 3.5 0 0 1 14 7 A3.5 3.5 0 0 1 20 10 Z"
-                fill={hasHighAmmonia || hasColdHuddle ? '#f59e0b' : '#f43f5e'}
-              />
+          {/* Ground shadow that shrinks gently while jumping */}
+          <ellipse
+            cx="27"
+            cy="49"
+            rx={Math.max(8, 15 - girlJumpZ * 0.14)}
+            ry={Math.max(3, 5 - girlJumpZ * 0.04)}
+            fill="#2d5a1b"
+            opacity={Math.max(0.2, 0.45 - girlJumpZ * 0.005)}
+          />
+          <g transform={`translate(0, ${(-girlJumpZ).toFixed(1)})`}>
+            <g className={isGirlMoving && girlJumpZ === 0 ? 'animate-girl-step' : undefined}>
+              <foreignObject x="0" y="0" width="54" height="54">
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    transform: girlFacing === 'left' ? 'scaleX(-1)' : undefined,
+                  }}
+                >
+                  <PixelFarmerSprite avatar={farm.farmerAvatar} size={52} />
+                </div>
+              </foreignObject>
+            </g>
+            {/* Floating Pixel Heart / Alert Bubble */}
+            <g transform="translate(12, -24)">
+              <g className="animate-heart-float">
+                <rect x="0" y="0" width="28" height="22" rx="4" fill="#ffffff" />
+                <rect x="0" y="20" width="28" height="2" fill="#cbd5e1" />
+                <polygon points="10,22 14,27 18,22" fill="#ffffff" />
+                <path
+                  d="M14 16 L8 10 A3.5 3.5 0 0 1 14 7 A3.5 3.5 0 0 1 20 10 Z"
+                  fill={hasHighAmmonia || hasColdHuddle ? '#f59e0b' : '#f43f5e'}
+                />
+              </g>
             </g>
           </g>
         </g>
@@ -1066,7 +1115,7 @@ export const FarmScene: React.FC<FarmSceneProps> = ({
       {!hovered && (
         <div className="hidden lg:block fixed bottom-4 left-4 z-20 bg-[#f6e3ba]/95 border-2 border-[#723b18] px-3 py-1.5 shadow-md text-xs font-semibold text-[#4a2612]">
           <span>
-            ชี้เมาส์ที่สิ่งปลูกสร้างเพื่อดูรายละเอียด · กด <kbd className="px-1 py-0.5 bg-[#fff9eb] border border-[#8e4c1d] font-mono-num text-[10px]">W A S D</kbd> เดินสำรวจฟาร์ม · คลิกเป็ดหรือแมวได้
+            ชี้เมาส์ที่สิ่งปลูกสร้างเพื่อดูรายละเอียด · กด <kbd className="px-1 py-0.5 bg-[#fff9eb] border border-[#8e4c1d] font-mono-num text-[10px]">W A S D</kbd> เดิน · <kbd className="px-1 py-0.5 bg-[#fff9eb] border border-[#8e4c1d] font-mono-num text-[10px]">Space</kbd> กระโดด · คลิกเป็ดหรือแมวได้
           </span>
         </div>
       )}
